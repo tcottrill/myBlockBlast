@@ -97,7 +97,7 @@ Inspired by the mobile game **Block Blast!**. This is an independent open-source
 ### Contributors
 
 - **tcottrill** — project owner, direction, and review.
-- **Claude (Anthropic)** — co-author of the design spec and the initial implementation, working through [Claude Code](https://claude.com/claude-code) with the `self-contained-html-app` skill and the `myMahjong` reference project.
+- **Claude (Anthropic)** — co-author of the design spec and the initial implementation.
 
 ## License
 
