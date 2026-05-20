@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon-192.png" alt="Block Blast icon" width="128" height="128">
+</p>
+
 # Block Blast
 
 A self-contained Block Blast clone — drag pieces onto an 8×8 grid, fill rows and columns to clear them, chase combos and streaks. Built as a single `index.html` with no build step, no server, and no network calls after the first page load.
@@ -91,7 +95,10 @@ For PWA install testing you need HTTPS, which `file://` and plain `http://` cann
 
 Inspired by the mobile game **Block Blast!**. This is an independent open-source homage; it shares no code, art, or copyrighted material with the original.
 
-Designed and built with [Claude Code](https://claude.com/claude-code) using the `self-contained-html-app` skill and the `myMahjong` reference project.
+### Contributors
+
+- **tcottrill** — project owner, direction, and review.
+- **Claude (Anthropic)** — co-author of the design spec and the initial implementation, working through [Claude Code](https://claude.com/claude-code) with the `self-contained-html-app` skill and the `myMahjong` reference project.
 
 ## License
 
