@@ -1230,20 +1230,64 @@ window.addEventListener('contextmenu', (e) => { if (drag) e.preventDefault(); })
 // ============================================================================
 
 let audioCtx = null;
+let audioPrimed = false;
 function ensureAudio() {
     if (audioCtx) return audioCtx;
     try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        audioCtx = new Ctor();
     } catch (e) {
         audioCtx = null;
     }
     return audioCtx;
 }
 
+// iOS Safari starts an AudioContext in 'suspended' state even when created
+// inside a user-gesture handler. We must explicitly resume() it on the first
+// real touch/click/key, and also defensively after the page is foregrounded
+// (visibility change can re-suspend the context).
+function primeAudio() {
+    const ac = ensureAudio();
+    if (!ac) return;
+    if (ac.state === 'suspended' && ac.resume) {
+        ac.resume().catch(() => {});
+    }
+    if (!audioPrimed) {
+        audioPrimed = true;
+        // Schedule a tiny silent buffer to "unlock" the context on iOS
+        try {
+            const buf = ac.createBuffer(1, 1, 22050);
+            const src = ac.createBufferSource();
+            src.buffer = buf;
+            src.connect(ac.destination);
+            src.start(0);
+        } catch (e) {}
+    }
+}
+
+function ensureAudioRunning() {
+    const ac = audioCtx;
+    if (ac && ac.state === 'suspended' && ac.resume) {
+        ac.resume().catch(() => {});
+    }
+}
+
+// Prime on the very first user gesture anywhere on the document. We use
+// the capture phase so we run before any per-element handlers and we keep
+// the listeners attached until audioPrimed (the body runs cheaply after).
+['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach((ev) => {
+    window.addEventListener(ev, primeAudio, { capture: true, passive: true });
+});
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') ensureAudioRunning();
+});
+
 function tone(freq, dur, type = 'sine', vol = 0.14, delay = 0) {
     if (muted) return;
     const ac = ensureAudio();
     if (!ac) return;
+    ensureAudioRunning();
     const t0 = ac.currentTime + delay;
     const osc = ac.createOscillator();
     const g = ac.createGain();
@@ -1260,6 +1304,7 @@ function sweep(f1, f2, dur, type = 'sine', vol = 0.14) {
     if (muted) return;
     const ac = ensureAudio();
     if (!ac) return;
+    ensureAudioRunning();
     const t0 = ac.currentTime;
     const osc = ac.createOscillator();
     const g = ac.createGain();
