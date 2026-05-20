@@ -66,8 +66,7 @@ myBlockBlast/
 ├── favicon-32x32.png
 ├── README.md                        # this file
 ├── PROMPT.md                        # regeneration spec
-├── LICENSE                          # Unlicense
-└── docs/superpowers/specs/          # design history
+└── LICENSE                          # Unlicense
 ```
 
 ## Running locally
