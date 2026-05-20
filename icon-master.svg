@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#1d2452"/>
+      <stop offset="100%" stop-color="#0a0e26"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%"  stop-color="rgba(70,227,255,0.35)"/>
+      <stop offset="100%" stop-color="rgba(70,227,255,0)"/>
+    </radialGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#67e9f5"/>
+      <stop offset="100%" stop-color="#1d96b8"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffbb6e"/>
+      <stop offset="100%" stop-color="#ec7a17"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#7df0a0"/>
+      <stop offset="100%" stop-color="#1ca84d"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#c39bff"/>
+      <stop offset="100%" stop-color="#7339d4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background card filling whole canvas (rounded for non-maskable use) -->
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#glow)"/>
+
+  <!-- 4 tiles arranged in a 2x2 cluster, centered -->
+  <g transform="translate(96 96)">
+    <!-- top-left cyan -->
+    <g transform="translate(0 0)">
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="url(#cyan)"/>
+      <rect x="14" y="14" width="112" height="44" rx="20" ry="20" fill="rgba(255,255,255,0.36)"/>
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="6"/>
+    </g>
+    <!-- top-right orange -->
+    <g transform="translate(180 0)">
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="url(#orange)"/>
+      <rect x="14" y="14" width="112" height="44" rx="20" ry="20" fill="rgba(255,255,255,0.36)"/>
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="6"/>
+    </g>
+    <!-- bottom-left green -->
+    <g transform="translate(0 180)">
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="url(#green)"/>
+      <rect x="14" y="14" width="112" height="44" rx="20" ry="20" fill="rgba(255,255,255,0.36)"/>
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="6"/>
+    </g>
+    <!-- bottom-right purple -->
+    <g transform="translate(180 180)">
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="url(#purple)"/>
+      <rect x="14" y="14" width="112" height="44" rx="20" ry="20" fill="rgba(255,255,255,0.36)"/>
+      <rect x="0" y="0" width="140" height="140" rx="28" ry="28" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="6"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+# Local design and planning docs are kept out of the published repo.
+docs/
+
+# Editor + OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
