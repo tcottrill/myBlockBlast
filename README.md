@@ -2,6 +2,8 @@
 
 A self-contained Block Blast clone — drag pieces onto an 8×8 grid, fill rows and columns to clear them, chase combos and streaks. Built as a single `index.html` with no build step, no server, and no network calls after the first page load.
 
+**Play it now:** [https://tcottrill.github.io/myBlockBlast/](https://tcottrill.github.io/myBlockBlast/)
+
 The whole game — markup, CSS, JavaScript, tile rendering, and synthesized sound effects — lives inside one HTML file. The only sidecar files are the PWA icons and the web app manifest.
 
 ## Free and open
