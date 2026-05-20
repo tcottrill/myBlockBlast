@@ -1244,25 +1244,37 @@ function ensureAudio() {
 }
 
 // iOS Safari starts an AudioContext in 'suspended' state even when created
-// inside a user-gesture handler. We must explicitly resume() it on the first
-// real touch/click/key, and also defensively after the page is foregrounded
-// (visibility change can re-suspend the context).
+// inside a user-gesture handler. The full unlock sequence on iOS is:
+//   1. Create or get the context
+//   2. Play a 1-sample silent buffer using the CONTEXT's sample rate
+//   3. Play a 0-volume oscillator briefly to engage the audio session
+//   4. Call resume() (returns a promise, must not be awaited synchronously)
+// Steps 2 and 3 must happen inside the user gesture; resume() can be async.
 function primeAudio() {
     const ac = ensureAudio();
     if (!ac) return;
-    if (ac.state === 'suspended' && ac.resume) {
-        ac.resume().catch(() => {});
-    }
+
     if (!audioPrimed) {
         audioPrimed = true;
-        // Schedule a tiny silent buffer to "unlock" the context on iOS
         try {
-            const buf = ac.createBuffer(1, 1, 22050);
+            const buf = ac.createBuffer(1, 1, ac.sampleRate);
             const src = ac.createBufferSource();
             src.buffer = buf;
             src.connect(ac.destination);
             src.start(0);
         } catch (e) {}
+        try {
+            const osc = ac.createOscillator();
+            const g = ac.createGain();
+            g.gain.setValueAtTime(0.0001, ac.currentTime);
+            osc.connect(g).connect(ac.destination);
+            osc.start(ac.currentTime);
+            osc.stop(ac.currentTime + 0.05);
+        } catch (e) {}
+    }
+
+    if (ac.state === 'suspended' && ac.resume) {
+        ac.resume().catch(() => {});
     }
 }
 
@@ -1273,9 +1285,8 @@ function ensureAudioRunning() {
     }
 }
 
-// Prime on the very first user gesture anywhere on the document. We use
-// the capture phase so we run before any per-element handlers and we keep
-// the listeners attached until audioPrimed (the body runs cheaply after).
+// Prime on the very first user gesture anywhere on the document. Capture
+// phase so we run before any per-element handlers.
 ['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach((ev) => {
     window.addEventListener(ev, primeAudio, { capture: true, passive: true });
 });
@@ -1289,15 +1300,18 @@ function tone(freq, dur, type = 'sine', vol = 0.14, delay = 0) {
     if (!ac) return;
     ensureAudioRunning();
     const t0 = ac.currentTime + delay;
+    const attack = 0.005;
     const osc = ac.createOscillator();
     const g = ac.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(vol, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    // Linear envelopes are more reliable than exponential on iOS Safari.
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.linearRampToValueAtTime(0,   t0 + dur);
     osc.connect(g).connect(ac.destination);
     osc.start(t0);
-    osc.stop(t0 + dur + 0.02);
+    osc.stop(t0 + dur + 0.05);
 }
 
 function sweep(f1, f2, dur, type = 'sine', vol = 0.14) {
@@ -1306,16 +1320,18 @@ function sweep(f1, f2, dur, type = 'sine', vol = 0.14) {
     if (!ac) return;
     ensureAudioRunning();
     const t0 = ac.currentTime;
+    const attack = 0.005;
     const osc = ac.createOscillator();
     const g = ac.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(f1, t0);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t0 + dur);
-    g.gain.setValueAtTime(vol, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.frequency.linearRampToValueAtTime(Math.max(20, f2), t0 + dur);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.linearRampToValueAtTime(0,   t0 + dur);
     osc.connect(g).connect(ac.destination);
     osc.start(t0);
-    osc.stop(t0 + dur + 0.02);
+    osc.stop(t0 + dur + 0.05);
 }
 
 function playSfx(name) {
