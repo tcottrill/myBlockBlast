@@ -63,7 +63,7 @@
             grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 8px;
-            padding: 12px 16px 6px;
+            padding: 6px 16px 2px;
         }
         .brand {
             font-size: 18px; font-weight: 800;
@@ -160,13 +160,15 @@
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
             gap: 6px;
-            padding: 12px 12px 18px;
-            min-height: 140px;
+            padding: 6px 12px 10px;
         }
         .slot {
             position: relative;
             display: flex; align-items: center; justify-content: center;
-            min-height: 110px;
+            /* Locked to fit the tallest piece (5 cells vertical) so the
+               layout never shifts when a tall piece appears in the tray.
+               JS sets --slot-h based on the current tray cell size. */
+            min-height: var(--slot-h, 130px);
             border-radius: 12px;
             background: rgba(255,255,255,0.025);
         }
@@ -288,9 +290,8 @@
 
         /* Small-screen tweaks */
         @media (max-height: 720px) {
-            footer#trayWrap { min-height: 110px; padding: 8px 10px 12px; }
-            .slot { min-height: 92px; }
-            header { padding: 8px 14px 4px; }
+            footer#trayWrap { padding: 4px 10px 6px; }
+            header { padding: 4px 14px 2px; }
             .scores .score-num { font-size: 18px; }
         }
         @media (max-width: 380px) {
@@ -943,8 +944,11 @@ const slotEls = [
 ];
 
 function pieceTrayCellSize() {
-    // tray pieces render smaller than board cells
-    return Math.max(12, Math.floor(cellSize * 0.62));
+    // Tray pieces render smaller than board cells. The multiplier is
+    // tuned so a 5-cell-wide piece (the widest in the catalog) fits
+    // inside a 1/3-width slot at typical phone widths. With 0.46:
+    //   board cell 45px → tray cell 20px → 5-wide piece ~112px, fits.
+    return Math.max(12, Math.floor(cellSize * 0.46));
 }
 
 function buildPieceHost(piece, colorIdx, cellPx) {
@@ -972,6 +976,12 @@ function buildPieceHost(piece, colorIdx, cellPx) {
 
 function layoutTray() {
     const cs = pieceTrayCellSize();
+    // Lock slot min-height to fit the tallest piece (5 cells vertical
+    // with 4 * 3px gaps + 6px breathing). This prevents the footer from
+    // resizing when a tall piece appears or leaves the tray, which would
+    // otherwise shift the centered board up and down.
+    const slotH = cs * 5 + 4 * 3 + 6;
+    document.documentElement.style.setProperty('--slot-h', slotH + 'px');
     for (let i = 0; i < 3; i++) {
         const slotEl = slotEls[i];
         slotEl.innerHTML = '';
