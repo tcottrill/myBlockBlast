@@ -103,7 +103,7 @@ For PWA install testing you need HTTPS, which `file://` and plain `http://` cann
 
 ## Verification
 
-Run `node --test tests/game.test.cjs` (Node.js 18 or later). Tests cover scoring, combo expiry, independent whole-tray solvability, mode records, Daily replay/resume, legacy saves, and the existing board checks. The original browser checks also remain available with `?test=1`.
+Run `node --test tests/game.test.cjs tests/audio.test.cjs` (Node.js 18 or later). Tests cover scoring, combo expiry, independent whole-tray solvability, mode records, Daily replay/resume, legacy saves, audio lifecycle recovery, and the existing board checks. Audio lifecycle tests model browser states; they do not prove physical iPhone speaker output. The original browser checks also remain available with `?test=1`.
 
 Optional UI smoke check: with Playwright and Microsoft Edge installed, run `node tests/browser-smoke.cjs`. This exercises real pointer input, reload/Continue, all three mode selections, viewport bounds, and browser errors. Set `SMOKE_SCREENSHOT_DIR` to an existing directory to save preview images.
 
@@ -117,7 +117,17 @@ Verified for the Classic/Hard/Daily update:
 - The Edge browser smoke check passed for piece dragging, reload/Continue, and switching between all three modes, with no browser console errors.
 - Board, tray, and combo indicator bounds were checked at **390 × 844**, **320 × 568**, and **1280 × 800**. The 390 × 844 game and menu screenshots were also inspected.
 
-These were desktop Edge checks at phone-sized viewports, not physical-device or Safari tests. **iPhone Safari validation is pending.**
+These were desktop Edge checks at phone-sized viewports, not physical-device or Safari tests. An iOS 27 Safari device test reported no sound despite Silent Mode being off and volume being up. The subsequent audio recovery update passes all 17 automated tests and the Edge smoke check, including Test sound and small-phone menu bounds. **Audible output on iPhone Safari remains unverified after that update.**
+
+### Troubleshooting Safari audio
+
+From the main menu, tap **TEST SOUND**. This enables game sound, discards the old audio context, and attempts a fresh unlock and short chime without changing your saved game. The status below the button reports the result:
+
+- **Audio reports running:** the browser says audio processing started. If you hear nothing, report “running, no sound”; this does not mean the speaker output is working.
+- **Suspended or interrupted:** Safari has not resumed audio. Tap Test sound again and report the status if it persists.
+- **Unavailable:** the browser could not create an audio context.
+
+The game retries audio unlock on touch release, recovers suspended and interrupted contexts, and recreates closed contexts. Toggling the speaker button back on also attempts an unlock and plays a short confirmation sound. On iOS, check media volume and Silent Mode separately; Web Audio normally obeys Silent Mode. This update does not override that system setting.
 
 Safari device checklist:
 
@@ -127,6 +137,7 @@ Safari device checklist:
 - Build a combo, make two non-clearing placements, and clear again. Verify that the combo continues; three consecutive non-clears should reset it.
 - Reload and use Continue. Also background and reopen Safari to check that the board, score, mode, and combo survive.
 - Test sound after the first tap, mute/unmute, and returning from the background.
+- Try the menu's Test sound button and record both the displayed status and whether the chime is audible.
 - Add the game to the Home Screen and repeat the layout and drag checks, including safe-area spacing. Rotate the phone and return to portrait to check layout recovery.
 
 ## Regenerating from a prompt

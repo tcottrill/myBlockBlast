@@ -230,6 +230,9 @@
             padding: 26px 24px 22px;
             min-width: 260px;
             max-width: 340px;
+            max-height: 100%;
+            overflow-y: auto;
+            touch-action: pan-y;
             text-align: center;
             box-shadow: 0 18px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(70,227,255,0.08) inset;
             animation: dialogIn 220ms ease-out;
@@ -350,7 +353,9 @@
         <div class="btn-row">
             <button class="dlg" id="btnPlay">PLAY</button>
             <button class="dlg secondary" id="btnContinue" style="display:none">CONTINUE</button>
+            <button class="dlg secondary" id="btnTestSound">TEST SOUND</button>
         </div>
+        <p id="soundStatus" role="status" aria-live="polite" style="font-size:12px;margin-bottom:0">Test sound if you cannot hear game effects.</p>
     </div>
 </div>
 
@@ -1322,7 +1327,9 @@ window.addEventListener('contextmenu', (e) => { if (drag) e.preventDefault(); })
 let audioCtx = null;
 let audioPrimed = false;
 function ensureAudio() {
-    if (audioCtx) return audioCtx;
+    if (audioCtx && audioCtx.state !== 'closed') return audioCtx;
+    audioCtx = null;
+    audioPrimed = false;
     try {
         const Ctor = window.AudioContext || window.webkitAudioContext;
         if (!Ctor) return null;
@@ -1333,25 +1340,23 @@ function ensureAudio() {
     return audioCtx;
 }
 
-// iOS Safari starts an AudioContext in 'suspended' state even when created
-// inside a user-gesture handler. The full unlock sequence on iOS is:
-//   1. Create or get the context
-//   2. Play a 1-sample silent buffer using the CONTEXT's sample rate
-//   3. Play a 0-volume oscillator briefly to engage the audio session
-//   4. Call resume() (returns a promise, must not be awaited synchronously)
-// Steps 2 and 3 must happen inside the user gesture; resume() can be async.
+// Keep unlock operations in the gesture's synchronous call stack. Safari may
+// need another attempt after an interruption or a rejected initial unlock.
+// This unlocks Web Audio; it does not override the phone's Silent Mode.
 function primeAudio() {
+    if (muted) return;
     const ac = ensureAudio();
     if (!ac) return;
 
-    if (!audioPrimed) {
-        audioPrimed = true;
+    if (!audioPrimed || ac.state !== 'running') {
         try {
             const buf = ac.createBuffer(1, 1, ac.sampleRate);
             const src = ac.createBufferSource();
             src.buffer = buf;
             src.connect(ac.destination);
             src.start(0);
+            src.onended = () => src.disconnect();
+            audioPrimed = true;
         } catch (e) {}
         try {
             const osc = ac.createOscillator();
@@ -1360,24 +1365,52 @@ function primeAudio() {
             osc.connect(g).connect(ac.destination);
             osc.start(ac.currentTime);
             osc.stop(ac.currentTime + 0.05);
+            osc.onended = () => { osc.disconnect(); g.disconnect(); };
         } catch (e) {}
     }
 
-    if (ac.state === 'suspended' && ac.resume) {
-        ac.resume().catch(() => {});
-    }
+    ensureAudioRunning();
 }
 
 function ensureAudioRunning() {
+    if (muted) return;
     const ac = audioCtx;
-    if (ac && ac.state === 'suspended' && ac.resume) {
-        ac.resume().catch(() => {});
+    if (ac && (ac.state === 'suspended' || ac.state === 'interrupted') && ac.resume) {
+        try {
+            ac.resume().catch(() => { audioPrimed = false; });
+        } catch (e) { audioPrimed = false; }
     }
+}
+
+function testSound() {
+    // An explicit gesture gives Safari a fresh unlock attempt, without
+    // reloading the page or losing the saved game. Testing opts into sound.
+    const previous = audioCtx;
+    audioCtx = null;
+    audioPrimed = false;
+    if (previous && previous.state !== 'closed') {
+        try { previous.close().catch(() => {}); } catch (e) {}
+    }
+    muted = false;
+    saveMute();
+    updateMuteUI();
+    primeAudio();
+    playSfx('combo');
+    const testedContext = audioCtx;
+    const status = document.getElementById('soundStatus');
+    status.textContent = 'Playing a test chime…';
+    setTimeout(() => {
+        if (audioCtx !== testedContext) return;
+        const audioState = testedContext ? testedContext.state : 'unavailable';
+        status.textContent = audioState === 'running'
+            ? 'Audio reports running. If no chime is audible, report “running, no sound”.'
+            : `Audio: ${audioState}. Tap TEST SOUND to retry; report this status if it stays silent.`;
+    }, 300);
 }
 
 // Prime on the very first user gesture anywhere on the document. Capture
 // phase so we run before any per-element handlers.
-['pointerdown', 'touchstart', 'mousedown', 'keydown', 'click'].forEach((ev) => {
+['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'keydown', 'click'].forEach((ev) => {
     window.addEventListener(ev, primeAudio, { capture: true, passive: true });
 });
 document.addEventListener('visibilitychange', () => {
@@ -1477,6 +1510,7 @@ const modeSelect = document.getElementById('modeSelect');
 const modeLabel = document.getElementById('modeLabel');
 const modeHelp = document.getElementById('modeHelp');
 const comboStatus = document.getElementById('comboStatus');
+document.getElementById('btnTestSound').addEventListener('click', testSound);
 
 function updateModeMenu() {
     const selected = modeSelect.value;
@@ -1507,6 +1541,10 @@ muteBtn.addEventListener('click', () => {
     muted = !muted;
     saveMute();
     updateMuteUI();
+    if (!muted) {
+        primeAudio();
+        playSfx('place');
+    }
 });
 
 menuBtn.addEventListener('click', () => {

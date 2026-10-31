@@ -152,6 +152,10 @@ Lazy `AudioContext` on first user gesture, wrapped in `try/catch`. About 50 line
 
 Mute toggle persisted in localStorage. `playSfx()` is a no-op when muted or when `AudioContext` failed to initialize.
 
+For Safari recovery, resume both `suspended` and `interrupted` contexts on gestures and when the page becomes visible. Recreate a closed context. Retry failed silent-buffer unlocks on subsequent gestures, including `touchend`/`pointerup`; keep unlock operations synchronous within the gesture. Muted gestures must not initialize audio. Unmuting attempts an unlock and plays a confirmation effect.
+
+Include a main-menu Test sound button. It explicitly enables sound, closes the old context, creates/unlocks a new one, plays a short chime, and displays the context state after a short delay without altering the saved game. A running state is diagnostic only, not evidence that a physical speaker is audible. Keep the default system Silent Mode behavior. Validate actual output separately on an iPhone.
+
 ### Persistence (localStorage)
 
 Versioned keys: `bb.best.v1` (Classic), `bb.best.hard.v1`, `bb.best.daily.v1.YYYY-MM-DD`, `bb.mute.v1`, `bb.game.v1`. Every read and write wrapped in `try/catch` (private-mode Safari throws). Save a new run immediately; subsequent game state saves are debounced (250 ms) and flushed on `pagehide` and `visibilitychange → hidden`. Keep schema 1 compatible by adding optional mode, date, RNG and missed-move fields with legacy defaults.
