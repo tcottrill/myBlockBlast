@@ -28,10 +28,20 @@ The layout is mobile-first portrait. The whole game, including header, board, an
 - A tray of three pieces sits below the board.
 - The player drags any tray piece onto the grid. The piece must fit entirely inside the board, and every target cell must be empty.
 - When a piece is placed, any row that is completely filled and any column that is completely filled are cleared simultaneously.
-- When all three tray pieces have been placed, three fresh random pieces appear.
+- When all three tray pieces have been placed, deal three fresh pieces using the selected mode.
 - The game ends when none of the remaining tray pieces can fit anywhere on the board.
 
 There is no undo. Every placement is committed.
+
+### Modes
+
+Provide a main-menu mode selector with concise descriptions and a persistent in-game mode label:
+
+- Classic: construct a legal three-placement path on a scratch copy of the current board, applying simultaneous clears between placements. At each step choose uniformly among shapes that fit, then choose a legal position. Shuffle the resulting tray and restore the real board unchanged. This guarantees a solution when dealt, not after arbitrary player choices.
+- Hard: choose all three pieces independently and uniformly from the shape catalog without considering the board. Impossible trays are allowed.
+- Daily: Hard's dealing using a dedicated deterministic PRNG seeded by the local YYYY-MM-DD date. Every attempt uses the same piece sequence for that date; animation randomness must not consume the gameplay PRNG. Allow unlimited retries. Continue retains the saved date and PRNG state; a new run uses today's date.
+
+Keep separate best scores for Classic, Hard, and each Daily date. Preserve the legacy best as Classic's. Store one resumable game, including mode, Daily date and PRNG state, combo count and non-clearing move count; default legacy saves to Classic with no missed moves. Starting a new run replaces the saved run. These modes and rules are Classic-inspired design choices, not exact replicas of the proprietary app.
 
 ### Piece library
 
@@ -54,9 +64,11 @@ Each spawned piece is assigned a random color from a 7-color palette: red, orang
 ### Scoring
 
 - `+1` per cell placed.
-- `+10` per cleared line.
-- Combo bonus when one placement clears more than one line: `+10 × (lines − 1) × lines`. So 2 lines = +20, 3 = +60, 4 = +120.
-- Streak bonus when consecutive placements each clear at least one line: `+5 × streak`, where streak is the run length. A placement that clears nothing resets the streak to 0.
+- Line points: `10 × lines² × min(combo, 8)`; rows and columns count together.
+- The first clearing placement starts combo 1. Each further clearing placement increases combo once. Two non-clearing placements may intervene; the third consecutive miss resets combo. Keep counting combos past eight, but cap the multiplier at eight.
+- Add 300 if a clear leaves the entire board empty. This bonus and placement points are not multiplied.
+- Show the combo, current multiplier, and remaining moves to clear in a compact status line. Save and restore the grace-move count.
+- All three modes share the scoring rules. Preserve previously earned points when loading legacy saves.
 
 ---
 
@@ -142,7 +154,7 @@ Mute toggle persisted in localStorage. `playSfx()` is a no-op when muted or when
 
 ### Persistence (localStorage)
 
-Versioned keys: `bb.best.v1`, `bb.mute.v1`, `bb.game.v1`. Every read and write wrapped in `try/catch` (private-mode Safari throws). In-progress game state is debounced (250 ms) and flushed on `pagehide` and `visibilitychange → hidden`. Schema version stored in the saved object; mismatch discards the saved game (keeps best score).
+Versioned keys: `bb.best.v1` (Classic), `bb.best.hard.v1`, `bb.best.daily.v1.YYYY-MM-DD`, `bb.mute.v1`, `bb.game.v1`. Every read and write wrapped in `try/catch` (private-mode Safari throws). Save a new run immediately; subsequent game state saves are debounced (250 ms) and flushed on `pagehide` and `visibilitychange → hidden`. Keep schema 1 compatible by adding optional mode, date, RNG and missed-move fields with legacy defaults.
 
 ### Dialogs
 
@@ -188,8 +200,9 @@ The font stack is the native system stack — no web fonts.
 | Drag | Piece follows finger with 80 px offset; ghost turns green/red correctly |
 | Drop | Valid commits, invalid snaps back, off-board snaps back |
 | Clear | Single row, single col, simultaneous row+col, 2/3/4-line combos |
-| Combo/streak | +N pop appears; streak resets when a placement clears nothing |
-| Refill | Tray refills only after all three pieces consumed |
+| Combo/streak | +N pop appears; two non-clears preserve combo, third resets; multiplier caps at eight; all-clear awards 300 |
+| Refill | Tray refills only after all three pieces consumed; Classic tray solvable including sequential clears |
+| Modes | Separate bests; Daily retries reproduce the sequence and Continue restores PRNG state and original date |
 | Game over | Dialog appears with final + best score |
 | Persist | Best score, mute, in-progress game all survive reload + tab close |
 | Audio | First gesture inits audio; mute kills sound; unmute restores |

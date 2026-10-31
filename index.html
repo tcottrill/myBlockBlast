@@ -297,12 +297,16 @@
         @media (max-width: 380px) {
             .brand { font-size: 16px; }
         }
-    </style>
+        .mode-label { display: block; font-size: 11px; font-weight: normal; letter-spacing: 0; color: #a9bddf; }
+        #modeSelect { display: block; width: 100%; margin: 8px 0; padding: 10px; border-radius: 8px; background: #192446; color: #fff; border: 1px solid #52658b; font: inherit; }
+        #modeHelp { font-size: 13px; min-height: 3em; }
+        #comboStatus { text-align: center; font-size: 12px; color: #ffd351; padding: 3px 0; flex: 0 0 auto; }
+</style>
 </head>
 <body>
 
 <header>
-    <div class="brand">BLOCK BLAST</div>
+    <div class="brand">BLOCK BLAST<span id="modeLabel" class="mode-label">Classic</span></div>
     <div class="scores">
         <div class="score-block"><span>SCORE</span><span id="curScore" class="score-num">0</span></div>
         <div class="score-block"><span>BEST</span><span id="bestScore" class="score-num best">0</span></div>
@@ -320,6 +324,7 @@
     </div>
 </main>
 
+<div id="comboStatus" role="status" aria-live="polite">Clear lines to build a combo</div>
 <footer id="trayWrap">
     <div class="slot" data-slot="0"></div>
     <div class="slot" data-slot="1"></div>
@@ -332,6 +337,13 @@
     <div class="dialog">
         <h1>BLOCK BLAST</h1>
         <p>Drag pieces onto the grid. Fill rows or columns to clear them.</p>
+        <label for="modeSelect">Game mode</label>
+        <select id="modeSelect">
+            <option value="classic">Classic — forgiving</option>
+            <option value="hard">Hard — random pieces</option>
+            <option value="daily">Daily — today's challenge</option>
+        </select>
+        <p id="modeHelp">Every new tray has a solution. Choose your placements carefully.</p>
         <div class="stats">
             <div><span class="label">BEST</span><span class="val gold" id="menuBest">0</span></div>
         </div>
@@ -469,6 +481,10 @@ let tray = [];                    // array of {piece, colorIdx} or null per slot
 let score = 0;
 let bestScore = 0;
 let streak = 0;
+let movesWithoutClear = 0;
+let mode = 'classic';
+let dailyDate = '';
+let randomState = 1;
 let muted = false;
 
 let cellSize = 50;
@@ -495,12 +511,16 @@ function lsRemove(key) {
     try { localStorage.removeItem(key); } catch (e) {}
 }
 
+function bestKey(selectedMode = mode, date = dailyDate) {
+    if (selectedMode === 'classic') return K_BEST;
+    return selectedMode === 'daily' ? `bb.best.daily.v1.${date}` : 'bb.best.hard.v1';
+}
 function loadBest() {
-    const raw = lsGet(K_BEST);
+    const raw = lsGet(bestKey());
     bestScore = Number.parseInt(raw || '0', 10) || 0;
 }
 function saveBest() {
-    lsSet(K_BEST, String(bestScore));
+    lsSet(bestKey(), String(bestScore));
 }
 
 function loadMute() {
@@ -530,6 +550,10 @@ function doSaveGame() {
         t: tray.map(slot => slot ? { i: pieceIndex(slot.piece), c: slot.colorIdx } : null),
         s: score,
         st: streak,
+        nc: movesWithoutClear,
+        m: mode,
+        date: dailyDate,
+        rng: randomState,
     };
     lsSet(K_GAME, JSON.stringify(data));
 }
@@ -625,12 +649,69 @@ function anyPieceFits(slots) {
 // Tray
 // ============================================================================
 
-function refillTray() {
-    tray = [randomPiece(), randomPiece(), randomPiece()];
+function todayKey() {
+    // Local calendar date, rather than a UTC rollover during the evening.
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
-function randomPiece() {
-    const p = PIECES[(Math.random() * PIECES.length) | 0];
-    const colorIdx = 1 + ((Math.random() * (COLORS.length - 1)) | 0);
+function seedForDate(date) {
+    let seed = 2166136261;
+    for (const ch of 'blockblast-daily-v1:' + date) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
+    return seed >>> 0;
+}
+function pieceRandom() {
+    if (mode !== 'daily') return Math.random();
+    // Dedicated PRNG: visual effects and sounds cannot change Daily's pieces.
+    randomState = (randomState + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(randomState ^ (randomState >>> 15), 1 | randomState);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+function refillTray() {
+    if (mode !== 'classic') {
+        tray = [randomPiece(), randomPiece(), randomPiece()];
+        return;
+    }
+    // Construct a legal three-move path on a scratch board, including clears.
+    // Sampling shapes before positions avoids favoring small pieces just because
+    // they have more possible placements. Shuffle to keep the order a puzzle.
+    const realBoard = board;
+    board = board.slice();
+    const dealt = [];
+    try {
+        for (let i = 0; i < 3; i++) {
+            const choices = [];
+            for (const piece of PIECES) {
+                const positions = [];
+                for (let r = 0; r + piece.h <= GRID; r++) {
+                    for (let c = 0; c + piece.w <= GRID; c++) {
+                        if (canPlace(piece, r, c)) positions.push([r, c]);
+                    }
+                }
+                if (positions.length) choices.push({ piece, positions });
+            }
+            // A legal board always has an empty cell: full lines clear at once.
+            // Defensive fallback for a malformed imported/full board.
+            if (!choices.length) { dealt.push(randomPiece()); continue; }
+            const choice = choices[(pieceRandom() * choices.length) | 0];
+            const [r, c] = choice.positions[(pieceRandom() * choice.positions.length) | 0];
+            const slot = randomPiece(choice.piece);
+            dealt.push(slot);
+            placePiece(slot.piece, slot.colorIdx, r, c);
+            const full = findFullLines();
+            clearLines(full.rows, full.cols);
+        }
+    } finally {
+        board = realBoard;
+    }
+    for (let i = dealt.length - 1; i > 0; i--) {
+        const j = (pieceRandom() * (i + 1)) | 0;
+        [dealt[i], dealt[j]] = [dealt[j], dealt[i]];
+    }
+    tray = dealt;
+}
+function randomPiece(p = PIECES[(pieceRandom() * PIECES.length) | 0]) {
+    const colorIdx = 1 + ((pieceRandom() * (COLORS.length - 1)) | 0);
     return { piece: p, colorIdx };
 }
 
@@ -1146,21 +1227,17 @@ function commitPlacement(piece, colorIdx, slotIdx, r, c) {
     let cleared = [];
     if (totalLines > 0) {
         cleared = clearLines(full.rows, full.cols);
-        scoreDelta += totalLines * 10;
-        if (totalLines >= 2) {
-            scoreDelta += 10 * (totalLines - 1) * totalLines;
-        }
         streak += 1;
-        if (streak > 1) {
-            scoreDelta += 5 * streak;
-        }
+        movesWithoutClear = 0;
+        scoreDelta += 10 * totalLines * totalLines * Math.min(streak, 8);
+        if (board.every(v => v === 0)) scoreDelta += 300;
         // sound
         if (totalLines >= 2) playSfx('combo');
         else playSfx('clear');
         if (streak >= 2) playSfx('streak');
         spawnClearParticles(cleared);
         // combo flash
-        if (totalLines >= 2) flashCombo();
+        if (totalLines >= 2 || streak >= 2) flashCombo();
         // score pop at the centroid of cleared cells
         const padding = 6;
         const wrapRect = boardWrap.getBoundingClientRect();
@@ -1170,9 +1247,12 @@ function commitPlacement(piece, colorIdx, slotIdx, r, c) {
             sy += padding + cc.r * cellSize + cellSize / 2;
         }
         sx /= cleared.length; sy /= cleared.length;
-        spawnScorePop(sx, sy, scoreDelta, totalLines >= 2);
+        spawnScorePop(sx, sy, scoreDelta, totalLines >= 2 || streak >= 2);
     } else {
-        streak = 0;
+        if (streak > 0 && ++movesWithoutClear >= 3) {
+            streak = 0;
+            movesWithoutClear = 0;
+        }
         playSfx('place');
     }
 
@@ -1393,10 +1473,30 @@ const btnQuitYes   = document.getElementById('btnQuitYes');
 const btnQuitNo    = document.getElementById('btnQuitNo');
 const gameScoreEl  = document.getElementById('gameScore');
 const gameBestEl   = document.getElementById('gameBest');
+const modeSelect = document.getElementById('modeSelect');
+const modeLabel = document.getElementById('modeLabel');
+const modeHelp = document.getElementById('modeHelp');
+const comboStatus = document.getElementById('comboStatus');
+
+function updateModeMenu() {
+    const selected = modeSelect.value;
+    const date = todayKey();
+    modeHelp.textContent = selected === 'classic'
+        ? 'Every new tray has a solution. Choose your placements carefully.'
+        : selected === 'hard'
+        ? 'Unfiltered random pieces. New trays may have no solution.'
+        : `${date}: the same random piece sequence on every attempt. No guaranteed solution. Try to beat your daily best!`;
+    menuBestEl.textContent = String(Number.parseInt(lsGet(bestKey(selected, date)) || '0', 10) || 0);
+}
+modeSelect.addEventListener('change', updateModeMenu);
 
 function updateScoreUI() {
     curScoreEl.textContent = String(score);
     bestScoreEl.textContent = String(bestScore);
+    modeLabel.textContent = mode === 'daily' ? `Daily · ${dailyDate}` : mode === 'hard' ? 'Hard' : 'Classic';
+    comboStatus.textContent = streak > 0
+        ? `Combo ${streak} · ×${Math.min(streak, 8)} · ${3 - movesWithoutClear} moves to clear`
+        : 'Clear lines to build a combo';
 }
 function updateMuteUI() {
     muteBtn.textContent = muted ? '🔇' : '🔊';
@@ -1466,10 +1566,11 @@ function goToMenu() {
     // hide tray pieces by clearing them
     resetBoard();
     tray = [null, null, null];
-    score = 0; streak = 0;
+    score = 0; streak = 0; movesWithoutClear = 0;
     layoutTray();
     updateScoreUI();
     menuBestEl.textContent = String(bestScore);
+    updateModeMenu();
     btnContinue.style.display = loadSavedGame() ? '' : 'none';
     draw();
 }
@@ -1478,13 +1579,18 @@ function startNewGame() {
     dlgMenu.classList.remove('open');
     dlgGameOver.classList.remove('open');
     dlgConfirm.classList.remove('open');
+    mode = ['classic', 'hard', 'daily'].includes(modeSelect.value) ? modeSelect.value : 'classic';
+    dailyDate = mode === 'daily' ? todayKey() : '';
+    randomState = seedForDate(dailyDate);
+    loadBest();
     resetBoard();
     refillTray();
-    score = 0; streak = 0;
+    score = 0; streak = 0; movesWithoutClear = 0;
     state = 'PLAY';
     layoutTray();
     updateScoreUI();
     clearSavedGame();
+    doSaveGame();
     draw();
 }
 
@@ -1492,6 +1598,11 @@ function restoreFromSave(saved) {
     dlgMenu.classList.remove('open');
     dlgGameOver.classList.remove('open');
     dlgConfirm.classList.remove('open');
+    mode = ['classic', 'hard', 'daily'].includes(saved.m) ? saved.m : 'classic';
+    dailyDate = mode === 'daily' ? (saved.date || todayKey()) : '';
+    randomState = Number.isInteger(saved.rng) ? saved.rng >>> 0 : seedForDate(dailyDate);
+    modeSelect.value = mode;
+    loadBest();
     resetBoard();
     for (let i = 0; i < GRID * GRID; i++) board[i] = saved.b[i] & 0xff;
     tray = saved.t.map(s => {
@@ -1504,6 +1615,7 @@ function restoreFromSave(saved) {
     if (tray.every(s => s === null)) refillTray();
     score = saved.s | 0;
     streak = saved.st | 0;
+    movesWithoutClear = Math.max(0, Math.min(2, saved.nc | 0));
     state = 'PLAY';
     layoutTray();
     updateScoreUI();
@@ -1618,6 +1730,7 @@ function boot() {
     updateScoreUI();
     setupCanvas();
     layoutTray();
+    updateModeMenu();
 
     const saved = loadSavedGame();
     if (saved) {
