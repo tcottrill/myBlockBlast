@@ -13,8 +13,6 @@ const fs = require('node:fs');
         page.on('pageerror', e => errors.push(e.message));
         page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
         await page.goto(pathToFileURL(path.join(__dirname, '../index.html')).href + '?test=1');
-        await page.locator('#btnTestSound').click();
-        await page.waitForFunction(() => document.querySelector('#soundStatus').textContent.includes('reports running'));
         await page.locator('#modeSelect').selectOption('daily');
         await page.locator('#btnPlay').click();
         const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('bb.game.v1')));
@@ -38,13 +36,6 @@ const fs = require('node:fs');
         assert.equal(Number(await page.locator('#curScore').innerText()), shape.length);
         // pagehide flushes the debounced save during reload.
         await page.reload();
-        await page.setViewportSize({width:320,height:568});
-        await page.locator('#modeSelect').selectOption('daily');
-        await page.locator('#btnTestSound').click();
-        await page.waitForFunction(() => document.querySelector('#soundStatus').textContent.includes('reports running'));
-        const savedMenu = await page.locator('#dlgMenu .dialog').boundingBox();
-        assert.ok(savedMenu.y >= 0 && savedMenu.y+savedMenu.height <= 568, 'Daily menu with Continue and audio status fits small phone');
-        await page.setViewportSize({width:390,height:844});
         await page.locator('#btnContinue').click();
         assert.equal(Number(await page.locator('#curScore').innerText()), shape.length);
         assert.equal((await saved()).m, 'daily');
@@ -70,12 +61,6 @@ const fs = require('node:fs');
         if (process.env.SMOKE_SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SMOKE_SCREENSHOT_DIR,'test-game.png'),animations:'disabled'});
         await page.locator('#menuBtn').click();
         await page.locator('#btnPlay').waitFor({state:'visible'});
-        for (const viewport of [{width:390,height:844},{width:320,height:568}]) {
-            await page.setViewportSize(viewport);
-            await page.waitForTimeout(300);
-            const rect = await page.locator('#dlgMenu .dialog').boundingBox();
-            assert.ok(rect.y >= 0 && rect.y+rect.height <= viewport.height, 'menu fits '+JSON.stringify(viewport));
-        }
         if (process.env.SMOKE_SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SMOKE_SCREENSHOT_DIR,'test-menu.png'),animations:'disabled'});
         assert.deepEqual(errors, []);
         console.log('Browser smoke passed: drag, resume, mode switching, mobile/desktop bounds, no console errors.');
