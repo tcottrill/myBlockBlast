@@ -107,6 +107,28 @@ Run `node --test tests/game.test.cjs` (Node.js 18 or later). Tests cover scoring
 
 Optional UI smoke check: with Playwright and Microsoft Edge installed, run `node tests/browser-smoke.cjs`. This exercises real pointer input, reload/Continue, all three mode selections, viewport bounds, and browser errors. Set `SMOKE_SCREENSHOT_DIR` to an existing directory to save preview images.
 
+### Mobile-first design and Safari testing
+
+The game is designed for portrait phone play, with touch dragging, an elevated piece preview to keep it visible above your finger, and a board and tray that fit on screen. Mode selection stays in the main menu; the active mode and compact combo indicator remain visible during play. Gameplay has no keyboard requirement.
+
+Verified for the Classic/Hard/Daily update:
+
+- All nine automated test cases passed, including the 11 existing board sanity checks.
+- The Edge browser smoke check passed for piece dragging, reload/Continue, and switching between all three modes, with no browser console errors.
+- Board, tray, and combo indicator bounds were checked at **390 × 844**, **320 × 568**, and **1280 × 800**. The 390 × 844 game and menu screenshots were also inspected.
+
+These were desktop Edge checks at phone-sized viewports, not physical-device or Safari tests. **iPhone Safari validation is pending.**
+
+Safari device checklist:
+
+- Open the live game in portrait; check that the header, board, combo indicator, tray, and menu buttons fit, including when Safari's address bar expands or collapses.
+- Use a finger to place pieces near every board edge. Check that the preview stays above your finger, valid drops land correctly, and invalid or cancelled drags return to the tray.
+- Try Classic, Hard, and Daily; check the mode label and separate best scores. Retry Daily to confirm the opening pieces repeat.
+- Build a combo, make two non-clearing placements, and clear again. Verify that the combo continues; three consecutive non-clears should reset it.
+- Reload and use Continue. Also background and reopen Safari to check that the board, score, mode, and combo survive.
+- Test sound after the first tap, mute/unmute, and returning from the background.
+- Add the game to the Home Screen and repeat the layout and drag checks, including safe-area spacing. Rotate the phone and return to portrait to check layout recovery.
+
 ## Regenerating from a prompt
 
 `PROMPT.md` is a self-contained brief for the project. Paste it into [claude.ai](https://claude.ai) — or any capable LLM — and you should get back a working single-file implementation that matches this repository.
